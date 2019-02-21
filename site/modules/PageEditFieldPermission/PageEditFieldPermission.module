@@ -1,0 +1,177 @@
+<?php
+
+/**
+ * Page Edit Field Permission for ProcessWire 2.2+
+ * 
+ * Enables you to limit edit access (by role) to any field in the page editor.
+ *
+ * To install, place all of this module's files in /site/modules/PageEditFieldPermission/
+ *
+ * To use, create a new permission (Access > Permissions > New) and name it: page-edit-[field],
+ * replacing [field] with the name of the field you want to limit access to. This can be any
+ * custom field name of your own the built-in fields: title, name, parent, template, status.
+ *
+ * Once your page-edit-[field] permission(s) exist, add them to any roles that you want to have 
+ * edit access to the field. Roles that have edit access to a page, but don't have the 
+ * required page-edit-[field] permission will not be able to modify the relevant fields.
+ *
+ * Copyright 2012 by Ryan Cramer
+ *
+ * http://processwire.com
+ *
+ */
+
+class PageEditFieldPermission extends WireData implements Module, ConfigurableModule {
+
+	public static function getModuleInfo() {
+		return array(
+			'title' => 'Page Edit Field Permission', 
+			'version' => 3, 
+			'summary' => 'Enables you to limit edit access (by role) to any field in the page editor.',
+			'author' => 'Ryan Cramer',
+			'singular' => true, 
+			'autoload' => true, 
+			);
+	}
+
+	/**
+	 * Cached Permission objects that have names in the format page-edit-[field]
+	 *
+	 */
+	protected $fieldPermissions = null;
+
+	/**
+	 * Attach our hook
+	 *
+	 */
+	public function init() {
+		$this->addHookAfter('Page::editable', $this, 'hookPageEditable'); 
+		$this->addHookAfter('ProcessPageEdit::buildForm', $this, 'hookPageEditBuildForm'); 
+	}
+
+	/**
+ 	 * Perform the field permission check, modifying the return value when appropriate
+	 *
+	 */
+	public function hookPageEditable(HookEvent $event) {
+
+		if(!$event->return) return;
+		$fieldName = $event->arguments(0);
+		if(!$fieldName) return;
+		$page = $event->object; 
+
+		$fieldPermissions = $this->getFieldPermissions();
+		$permissionName = "page-edit-" . strtolower($fieldName);
+		if(!isset($fieldPermissions[$permissionName])) return;
+		$permission = $fieldPermissions[$permissionName];
+		if(!$this->user->hasPermission($permission)) {
+			$event->return = false;
+		}
+	}
+
+	/**
+	 * Hook after PageEdit::buildForm that removes fields user does not have access to edit
+	 *
+	 */
+	public function hookPageEditBuildForm(HookEvent $event) {
+
+		$translate = array(
+			'name' => '_pw_page_name',
+			'parent' => 'parent_id', 
+			);
+
+		$form = $event->return;	
+		$fieldPermissions = $this->getFieldPermissions();
+
+		foreach($fieldPermissions as $permissionName => $permission) {
+			if($this->user->hasPermission($permission)) continue; 
+			$fieldName = str_replace('page-edit-', '', $permissionName);
+			if(isset($translate[$fieldName])) $fieldName = $translate[$fieldName];
+			$field = $form->getChildByName($fieldName);
+			if($field) $field->parent->remove($field);
+		}
+		$event->return = $form;
+	}
+
+	/**
+	 * Build a cache of field permissions matching page-edit-[field]
+	 *
+	 */
+	protected function getFieldPermissions() {
+		if(!is_null($this->fieldPermissions)) return $this->fieldPermissions; 
+		$this->fieldPermissions = array();
+		foreach($this->permissions as $permission) {
+			if(strpos($permission->name, 'page-edit-') !== 0) continue; 
+			$this->fieldPermissions[$permission->name] = $permission;	
+		}
+		return $this->fieldPermissions; 
+	}
+
+	/**
+	 * Instructions and a handy permission creation tool
+	 *
+	 */
+	static public function getModuleConfigInputfields(array $data) {
+
+		$inputfields = new InputfieldWrapper();
+
+		$f = wire('modules')->get('InputfieldMarkup');
+		$f->label = 'How to use this module';
+		$f->attr('name', '_instructions');
+		$config = wire('config');
+		$f->value = <<< _OUT
+
+		<p>
+		To use, create a <a href='{$config->urls->admin}access/permissions/'>new permission</a> 
+		and name it <b>page-edit-[field]</b>, replacing [field] with the name of the field you 
+		want to limit access to. <em>Better yet, use the tool below to create them for you and save some time.</em>
+		</p>
+
+		<p> 
+		Once your page-edit-[field] permission(s) exist, <a href='{$config->urls->admin}access/roles/'>add them to any roles</a> 
+		that you want to have edit access to the field. Roles that have edit access to a page, but do not have the 
+		required page-edit-[field] permission will not be able to see or modify the [field] in the page editor. 
+		</p>
+
+		<p>Note that none of this applies to users with the superuser role, as they always have access to edit everything.</p>
+
+_OUT;
+
+		$createPermissions = wire('input')->post->_create_permissions;
+		if($createPermissions) foreach($createPermissions as $name) {
+			$name = wire('sanitizer')->pageName($name);
+			$permission = wire('permissions')->add("page-edit-$name");
+			$permission->title = "Access to edit the '$name' field"; 
+			$permission->save();
+			wire('modules')->message("Added permission: $permission->name");
+		}
+
+		$inputfields->add($f);
+
+		$f = wire('modules')->get('InputfieldCheckboxes');
+		$f->attr('name', '_create_permissions'); 
+		$f->label = 'Handy tool to create permissions for you';
+		$f->optionColumns = 3; 
+		$f->description = 'Check the box next to each field name you would like this tool to create a permission for you. This is the same thing as going to the Permissions page and creating them yourself, so this is here primarily as a time saver.';
+		$fields = array('name', 'parent', 'template', 'status'); 
+		$notes = '';
+		foreach(wire('fields') as $field) $fields[] = $field->name; 
+		foreach($fields as $name) {
+			if($name == 'pass') continue; 
+			if(wire('permissions')->get("page-edit-$name")->id) {
+				$notes .= "$name, ";
+				continue; 
+			}
+			$f->addOption($name);
+		}
+		if(!$notes) $notes = "[none yet]";
+		$f->notes = 
+			"Fields that already have permissions: " . rtrim($notes, ", ") . ". " . 
+			"Non-superuser roles that have page-edit access will no longer be able to see/edit these fields unless the appropriate permission is assigned to that role. ";
+		$inputfields->add($f);
+
+		return $inputfields;
+	}
+
+}
+

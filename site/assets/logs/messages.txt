@@ -1,0 +1,4 @@
+2015-07-15 14:08:18	admin	http://degaf-aethiopien.de/edit/setup/field/send-templates-save?id=id	Daten von Feld &quot;thirds_projects&quot; in 1 Zeile(n) auf 1 Seite(n) gelöscht. [Seite-für-Seite]
+2015-07-20 10:36:22	admin	http://degaf-aethiopien.de/edit/setup/field/edit?id=id	Added tags to DB schema for 'gallery_image'
+2015-07-31 10:44:08	admin	http://www.degaf-aethiopien.de/edit/setup/field/send-templates-save?id=id	Daten von Feld &quot;page_bottom_text&quot; in 0 Zeile(n) auf 0 Seite(n) gelöscht. [Seite-für-Seite]
+2015-07-31 10:44:08	admin	http://www.degaf-aethiopien.de/edit/setup/field/send-templates-save?id=id	Daten von Feld &quot;page_bottom_text&quot; in 1 Zeile(n) auf 1 Seite(n) gelöscht. [Seite-für-Seite]
