@@ -48,11 +48,11 @@
 
                 <div class="content m1">
                     <?php
-                    function before ($this, $inthat)
+                    function before ($inthat)
                     {
                         return substr($inthat, 0, strpos($inthat, $this));
                     };
-                    function after ($this, $inthat)
+                    function after ($inthat)
                     {
                         if (!is_bool(strpos($inthat, $this)))
                             return substr($inthat, strpos($inthat,$this)+strlen($this));
